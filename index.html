@@ -223,7 +223,7 @@
     maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap contributors © CARTO'
   });
   baseOsm.addTo(map);
-  L.control.layers({ '地理院地図': baseGsi, 'OpenStreetMap': baseOsm, 'CARTO': baseCarto }, null, { position: 'topleft' }).addTo(map);
+  L.control.layers({ 'OpenStreetMap': baseOsm, '地理院地図': baseGsi, 'CARTO': baseCarto }, null, { position: 'topleft' }).addTo(map);
   let baseErrs = 0;
   [baseGsi, baseOsm, baseCarto].forEach(l => l.on('tileerror', () => {
     if (++baseErrs === 5) setStatus('地図の画像を読みこめません。左上の地図マークから、ほかの地図をためしてください。');
