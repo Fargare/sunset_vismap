@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>夕日が見える場所マップ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html, body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  #map { position:absolute; inset:0; }
+  #panel { position:absolute; top:10px; right:10px; z-index:1000; width:310px; max-height:calc(100% - 20px); overflow:auto;
+           background:rgba(255,255,255,.96); border-radius:12px; box-shadow:0 2px 14px rgba(0,0,0,.3); padding:8px 14px 12px; font-size:14px; color:#222; line-height:1.5; }
+  #panel > summary { font-weight:800; font-size:16px; cursor:pointer; padding:4px 0; }
+  h3 { font-size:14px; margin:14px 0 6px; display:flex; align-items:center; gap:6px; }
+  .num { display:inline-flex; width:22px; height:22px; border-radius:50%; background:#ea580c; color:#fff; font-size:13px; align-items:center; justify-content:center; flex:none; }
+  .howto { background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:7px 10px; font-size:13px; }
+  .howto ol { margin:4px 0 0; padding-left:20px; }
+  input[type=range], input[type=date], select { width:100%; box-sizing:border-box; font-size:15px; }
+  input[type=date], select { padding:5px; }
+  input[type=range] { margin:6px 0; }
+  .small { font-size:12px; color:#555; }
+  .inline { display:flex; align-items:center; gap:8px; margin:8px 0; }
+  .inline input { width:18px; height:18px; }
+  #info { background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:8px 10px; margin-top:8px; }
+  #info b { font-size:17px; }
+  .presets { display:flex; flex-direction:column; gap:6px; }
+  .preset { text-align:left; padding:9px 10px; border:2px solid #d4d4d8; background:#fff; color:#222; border-radius:9px; font-size:14px; font-weight:700; cursor:pointer; }
+  .preset small { display:block; font-weight:400; color:#555; font-size:12px; }
+  .preset.on { border-color:#ea580c; background:#fff7ed; }
+  button.go { width:100%; padding:10px; border:0; border-radius:9px; background:#ea580c; color:#fff; font-weight:800; font-size:15px; cursor:pointer; margin-top:10px; }
+  button.go:hover { background:#c2410c; }
+  #status { color:#444; font-size:13px; min-height:1.5em; margin-top:6px; }
+  .legend { margin-top:10px; font-size:13px; }
+  .legend div { margin:3px 0; }
+  .sw { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-2px; margin-right:6px; }
+  details.adv { margin-top:12px; border-top:1px solid #e5e5e5; padding-top:6px; }
+  details.adv summary { cursor:pointer; font-weight:700; font-size:13px; }
+  .adv label { display:block; font-weight:600; margin:10px 0 2px; font-size:13px; }
+  .ov { image-rendering:auto; }
+  .credit { font-size:11px; color:#777; margin-top:10px; }
+  .pop { font-size:14px; line-height:1.6; }
+  .pop .ok { color:#15803d; font-weight:800; font-size:15px; }
+  .pop .ng { color:#b91c1c; font-weight:800; font-size:15px; }
+  @media (max-width:600px) {
+    #panel { top:auto; bottom:0; left:0; right:0; width:auto; max-height:52%; border-radius:14px 14px 0 0; }
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<details id="panel" open>
+  <summary>🌅 夕日が見える場所マップ</summary>
+
+  <div class="howto">
+    <b>つかい方</b>
+    <ol>
+      <li>見たい日をえらぶ</li>
+      <li>どんな夕日が見たいかをえらぶ</li>
+      <li>地図の<b style="color:#15803d">緑の場所</b>が夕日の見えるスポット。タップすると くわしく出ます</li>
+    </ol>
+  </div>
+
+  <h3><span class="num">1</span>いつ見る？</h3>
+  <input type="date" id="date">
+  <input type="range" id="day" min="1" max="365" step="1" title="日付をスライドで動かす">
+  <div class="small">スライドすると、その年の1月1日〜12月31日まで日付が動きます（<span id="daylabel"></span>）</div>
+
+  <div id="info">計算中です…</div>
+
+  <h3><span class="num">2</span>どんな夕日が見たい？</h3>
+  <div class="presets">
+    <button class="preset" data-v="0.2">🌅 水平線ぎりぎりまで見たい<small>太陽が地面や海にふれる瞬間まで、じゃまがない場所</small></button>
+    <button class="preset" data-v="5">🌇 赤い夕日が見えればOK<small>太陽が赤くなるころまで見える場所（おすすめ）</small></button>
+    <button class="preset" data-v="10">🏞 山が少しあってもOK<small>見える場所を広めに表示します</small></button>
+  </div>
+  <div class="small" id="tolhint" style="margin-top:6px"></div>
+
+  <h3><span class="num">3</span>見えかた</h3>
+  <div class="inline"><input type="checkbox" id="show" checked><label for="show">色をつけて表示する</label></div>
+  <label class="small" for="op">色のこさ：<span id="opv">60</span>%</label>
+  <input type="range" id="op" min="10" max="100" value="60">
+
+  <div class="legend" id="legend"></div>
+
+  <button class="go" id="go">もう一度 計算する</button>
+  <div id="status"></div>
+
+  <details class="adv">
+    <summary>⚙ くわしい設定（ふだんは変えなくてOK）</summary>
+
+    <label for="mode">色の見かた</label>
+    <select id="mode">
+      <option value="mask">見える場所だけ緑にする</option>
+      <option value="heat">かくれぐあいも色で見る（オレンジ〜赤）</option>
+    </select>
+
+    <label for="tol">山の高さのゆるし具合：<span id="tolv">0.2</span>度</label>
+    <input type="range" id="tol" min="0" max="10" step="0.1" value="0.2">
+    <div class="small">太陽の方向にある山を「見上げる角度」です。大きくするほど、山があっても「見える」とみなします。うでをのばして小指1本ぶんが約1度です。</div>
+
+    <label for="dist">どこまで遠くの山を調べる？：<span id="distv">50</span> km</label>
+    <input type="range" id="dist" min="10" max="100" step="5" value="50">
+
+    <label for="res">計算の細かさ</label>
+    <select id="res">
+      <option value="120">あらい（はやい）</option>
+      <option value="200" selected>ふつう</option>
+      <option value="320">こまかい（おそい）</option>
+    </select>
+
+    <label for="src">地形データ（地面の高さのデータ）</label>
+    <select id="src">
+      <option value="gsi">国土地理院（日本）＋ 海外はAWS</option>
+      <option value="terr">AWS（世界全体）</option>
+    </select>
+
+    <div class="inline"><input type="checkbox" id="sea" checked><label for="sea">海の上には色をつけない</label></div>
+  </details>
+
+  <div class="credit">
+    ・日の入りの方角は、画面の真ん中の場所で計算しています。<br>
+    ・地図：地理院地図 / OpenStreetMap contributors / CARTO、地形データ：国土地理院・AWS Terrain Tiles
+  </div>
+</details>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  if (typeof L === 'undefined') {
+    $('info').textContent = '地図の部品（Leaflet）を読みこめませんでした。インターネットにつながっているか確認して、Chrome や Safari で直接ひらいてください。';
+    return;
+  }
+  const RAD = Math.PI / 180;
+  const EYE_H = 1.6, REFRACT_K = 0.13, EARTH_R = 6371000;
+  const DIRS = ['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];
+
+  /* ---------- 太陽位置 (SunCalc 準拠) ---------- */
+  const dayMs = 86400000, J1970 = 2440588, J2000 = 2451545, OBL = RAD * 23.4397;
+  const toDays = d => d.valueOf() / dayMs - 0.5 + J1970 - J2000;
+  function sunPos(date, lat, lng) {
+    const d = toDays(date);
+    const M = RAD * (357.5291 + 0.98560028 * d);
+    const C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+    const L = M + C + RAD * 102.9372 + Math.PI;
+    const dec = Math.asin(Math.sin(L) * Math.sin(OBL));
+    const ra = Math.atan2(Math.sin(L) * Math.cos(OBL), Math.cos(L));
+    const H = RAD * (280.16 + 360.9856235 * d) - RAD * -lng - ra;
+    const phi = RAD * lat;
+    return {
+      azimuth: Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) + Math.PI,
+      altitude: Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H))
+    };
+  }
+  function sunsetFor(lat, lng, Y, M, D) {
+    const t0 = Date.UTC(Y, M - 1, D, 12) - lng / 15 * 3600e3;
+    const target = -0.833, step = 10 * 60e3;
+    const f = t => sunPos(new Date(t), lat, lng).altitude / RAD - target;
+    if (f(t0) <= 0) return null;
+    for (let t = t0 + step; t <= t0 + 14 * 3600e3; t += step) {
+      if (f(t) <= 0) {
+        let lo = t - step, hi = t;
+        for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (f(mid) > 0) lo = mid; else hi = mid; }
+        const ts = (lo + hi) / 2;
+        const p = sunPos(new Date(ts), lat, lng);
+        return { time: new Date(ts), az: ((p.azimuth / RAD) % 360 + 360) % 360 };
+      }
+    }
+    return null;
+  }
+  const fmtTime = d => d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  const dirName = az => DIRS[Math.round(az / 22.5) % 16];
+  const ymd = () => $('date').value.split('-').map(Number);
+
+  /* ---------- 標高タイル ---------- */
+  const tileCache = new Map();
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  const loadImage = url => new Promise((res, rej) => {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => res(im); im.onerror = () => rej(new Error('load failed')); im.src = url;
+  });
+  function decodeTile(im, kind) {
+    cx.clearRect(0, 0, 256, 256); cx.drawImage(im, 0, 0, 256, 256);
+    const d = cx.getImageData(0, 0, 256, 256).data, out = new Float32Array(65536);
+    for (let i = 0, p = 0; i < 65536; i++, p += 4) {
+      const r = d[p], g = d[p + 1], b = d[p + 2];
+      let h;
+      if (kind === 'gsi') {
+        const x = r * 65536 + g * 256 + b;
+        if (d[p + 3] === 0 || x === 8388608) h = 0;
+        else h = x < 8388608 ? x * 0.01 : (x - 16777216) * 0.01;
+      } else h = r * 256 + g + b / 256 - 32768;
+      out[i] = h > 0 ? h : 0;
+    }
+    return out;
+  }
+  async function getTile(src, z, x, y) {
+    const key = src + '/' + z + '/' + x + '/' + y;
+    if (tileCache.has(key)) return tileCache.get(key);
+    const terr = ['terr', `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`];
+    const list = src === 'gsi' ? [['gsi', `https://cyberjapandata.gsi.go.jp/xyz/dem_png/${z}/${x}/${y}.png`], terr] : [terr];
+    let data = null;
+    for (const [kind, url] of list) {
+      try { data = decodeTile(await loadImage(url), kind); break; } catch (e) { /* 次の候補へ */ }
+    }
+    if (!data) data = new Float32Array(65536);
+    tileCache.set(key, data);
+    if (tileCache.size > 400) tileCache.delete(tileCache.keys().next().value);
+    return data;
+  }
+
+  /* ---------- 地図 ---------- */
+  const map = L.map('map', { center: [35.30, 139.50], zoom: 11 });
+  const baseGsi = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+    maxZoom: 18, attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a>'
+  });
+  const baseOsm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap contributors'
+  });
+  const baseCarto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+    maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap contributors © CARTO'
+  });
+  baseGsi.addTo(map);
+  L.control.layers({ '地理院地図': baseGsi, 'OpenStreetMap': baseOsm, 'CARTO': baseCarto }, null, { position: 'topleft' }).addTo(map);
+  let baseErrs = 0;
+  [baseGsi, baseOsm, baseCarto].forEach(l => l.on('tileerror', () => {
+    if (++baseErrs === 5) setStatus('地図の画像を読みこめません。左上の地図マークから、ほかの地図をためしてください。');
+  }));
+  let overlay = null, arrow = null, grid = null;
+  let runId = 0, timer = null;
+
+  const setStatus = s => { $('status').textContent = s; };
+
+  /* ---------- 計算本体 ---------- */
+  async function compute() {
+    const my = ++runId;
+    const t0 = performance.now();
+    const c = map.getCenter();
+    const [Y, M, D] = ymd();
+    const sun = sunsetFor(c.lat, c.lng, Y, M, D);
+    if (arrow) { map.removeLayer(arrow); arrow = null; }
+    if (!sun) {
+      if (overlay) { map.removeLayer(overlay); overlay = null; }
+      grid = null;
+      $('info').textContent = 'この日この場所では、太陽がしずみません（または のぼりません）。';
+      setStatus(''); return;
+    }
+    $('info').innerHTML = `この日の日の入り：<b>${fmtTime(sun.time)}</b><br>` +
+      `太陽がしずむ方角：<b>${dirName(sun.az)}</b>（北から時計回りに${sun.az.toFixed(0)}度）<br>` +
+      `<span class="small">地図のオレンジの点線の向きに太陽がしずみます</span>`;
+
+    const az = sun.az * RAD, sx = Math.sin(az), sy = -Math.cos(az);
+    const maxDistM = +$('dist').value * 1000;
+    const b = map.getBounds();
+    const widthM = map.distance(b.getNorthWest(), b.getNorthEast());
+    const len = widthM * 0.25;
+    arrow = L.polyline([c, [c.lat + len * Math.cos(az) / 111320, c.lng + len * Math.sin(az) / (111320 * Math.cos(c.lat * RAD))]],
+      { color: '#f97316', weight: 3, dashArray: '6 6', interactive: false }).addTo(map);
+
+    let z = Math.max(6, Math.min(14, Math.round(map.getZoom()) + 1));
+    let nw, se, tx0, tx1, ty0, ty1, maxPx;
+    for (;;) {
+      nw = map.project(b.getNorthWest(), z); se = map.project(b.getSouthEast(), z);
+      const mppC = 156543.03392 * Math.cos(c.lat * RAD) / Math.pow(2, z);
+      maxPx = maxDistM / mppC;
+      const n = Math.pow(2, z);
+      const minX = Math.min(nw.x, nw.x + sx * maxPx), maxX = Math.max(se.x, se.x + sx * maxPx);
+      const minY = Math.min(nw.y, nw.y + sy * maxPx), maxY = Math.max(se.y, se.y + sy * maxPx);
+      tx0 = Math.max(0, Math.floor(minX / 256)); tx1 = Math.min(n - 1, Math.floor(maxX / 256));
+      ty0 = Math.max(0, Math.floor(minY / 256)); ty1 = Math.min(n - 1, Math.floor(maxY / 256));
+      if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) <= 120 || z <= 6) break;
+      z--;
+    }
+
+    const src = $('src').value;
+    const jobs = [];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) jobs.push([tx, ty]);
+    let done = 0;
+    setStatus(`⏳ 地面の高さのデータを集めています… 0/${jobs.length}`);
+    const tiles = await Promise.all(jobs.map(async ([tx, ty]) => {
+      const d = await getTile(src, z, tx, ty);
+      if (my === runId) setStatus(`⏳ 地面の高さのデータを集めています… ${++done}/${jobs.length}`);
+      return d;
+    }));
+    if (my !== runId) return;
+    const MW = (tx1 - tx0 + 1) * 256, MH = (ty1 - ty0 + 1) * 256;
+    const mosaic = new Float32Array(MW * MH);
+    jobs.forEach(([tx, ty], k) => {
+      const d = tiles[k];
+      for (let r = 0; r < 256; r++)
+        mosaic.set(d.subarray(r * 256, r * 256 + 256), ((ty - ty0) * 256 + r) * MW + (tx - tx0) * 256);
+    });
+
+    const W = +$('res').value;
+    const cell = (se.x - nw.x) / W;
+    const H = Math.max(1, Math.min(600, Math.ceil((se.y - nw.y) / cell)));
+    const theta = new Float32Array(W * H);
+    const mode = $('mode').value;
+    const tol = +$('tol').value;
+    const limDeg = mode === 'heat' ? tol + 10 : Math.max(tol, 0.01);
+    const limS = Math.tan(limDeg * RAD);
+    const skipSea = $('sea').checked;
+    const K = (1 - REFRACT_K) / (2 * EARTH_R);
+    const mx0 = tx0 * 256, my0 = ty0 * 256, worldPx = 256 * Math.pow(2, z);
+
+    let lastYield = performance.now();
+    for (let j = 0; j < H; j++) {
+      const yw = nw.y + (j + 0.5) * cell;
+      const latR = Math.atan(Math.sinh(Math.PI * (1 - 2 * yw / worldPx)));
+      const mpp = 156543.03392 * Math.cos(latR) / Math.pow(2, z);
+      const tMax = maxDistM / mpp;
+      const my_ = yw - my0;
+      for (let i = 0; i < W; i++) {
+        const idx = j * W + i;
+        const mxp = nw.x + (i + 0.5) * cell - mx0;
+        if (mxp < 0 || my_ < 0 || mxp >= MW || my_ >= MH) { theta[idx] = NaN; continue; }
+        const h0 = mosaic[(my_ | 0) * MW + (mxp | 0)];
+        if (skipSea && h0 <= 0) { theta[idx] = NaN; continue; }
+        const eye = h0 + EYE_H;
+        let maxS = -Infinity;
+        for (let t = 1; t <= tMax; t += Math.max(1, t * 0.02)) {
+          const px = mxp + sx * t, py = my_ + sy * t;
+          if (px < 0 || py < 0 || px >= MW || py >= MH) break;
+          const d = t * mpp;
+          const s = (mosaic[(py | 0) * MW + (px | 0)] - eye - d * d * K) / d;
+          if (s > maxS) { maxS = s; if (maxS > limS) break; }
+        }
+        theta[idx] = maxS === -Infinity ? -90 : Math.atan(maxS) / RAD;
+      }
+      if (performance.now() - lastYield > 12) {
+        setStatus(`⏳ 夕日が見えるか調べています… ${Math.round((j + 1) / H * 100)}%`);
+        await new Promise(requestAnimationFrame);
+        if (my !== runId) return;
+        lastYield = performance.now();
+      }
+    }
+
+    const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d'), img = ctx.createImageData(W, H), px = img.data;
+    let nVis = 0, nValid = 0;
+    for (let k = 0; k < theta.length; k++) {
+      const th = theta[k], o = k * 4;
+      if (Number.isNaN(th)) continue;
+      nValid++;
+      if (th <= tol) { px[o] = 34; px[o + 1] = 197; px[o + 2] = 94; px[o + 3] = 210; nVis++; }
+      else if (mode === 'heat') {
+        const u = Math.min(1, (th - tol) / 5);
+        px[o] = 251 + (127 - 251) * u; px[o + 1] = 146 + (29 - 146) * u; px[o + 2] = 60 + (29 - 60) * u; px[o + 3] = 170;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const bounds = L.latLngBounds(map.unproject([nw.x, nw.y], z), map.unproject([nw.x + W * cell, nw.y + H * cell], z));
+    const newOv = L.imageOverlay(cvs.toDataURL(), bounds, { opacity: +$('show').checked * $('op').value / 100, interactive: false, className: 'ov' });
+    newOv.addTo(map);
+    if (overlay) map.removeLayer(overlay);
+    overlay = newOv;
+    grid = { W, H, cell, z, nw, theta, tol, mosaic, MW, mx0, my0 };
+    const pct = nValid ? Math.round(nVis / nValid * 100) : 0;
+    setStatus(`✅ できました（${((performance.now() - t0) / 1000).toFixed(1)}秒）。画面の陸地のうち、夕日が見える場所は約${pct}％です。`);
+  }
+
+  function schedule(delay = 400) { clearTimeout(timer); timer = setTimeout(compute, delay); }
+
+  /* ---------- UI ---------- */
+  function tolHint(v) {
+    if (v <= 0.5) return '太陽が水平線にふれるまで、山や建物ではなく「地形」にじゃまされない場所だけを緑にします。';
+    if (v <= 6) return '太陽が低くなって赤くなるころまで見えれば、緑にします。夕焼けを楽しむならこのくらいがおすすめ。';
+    return '山が少し高くても、夕日が見えるとみなして、緑の場所を広めに出します。';
+  }
+  function setTol(v) {
+    v = +v;
+    $('tol').value = v;
+    $('tolv').textContent = v.toFixed(1);
+    $('tolhint').textContent = tolHint(v);
+    document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+  }
+  function updateLegend() {
+    $('legend').innerHTML =
+      '<div><span class="sw" style="background:rgb(34,197,94)"></span>緑：ここから夕日が見える</div>' +
+      '<div><span class="sw" style="background:#fff;border:1px solid #aaa"></span>色なし：山や丘にかくれて見えにくい</div>' +
+      ($('mode').value === 'heat' ? '<div><span class="sw" style="background:linear-gradient(90deg,#fb923c,#7f1d1d)"></span>オレンジ〜こい赤：かくれ方が大きい</div>' : '');
+  }
+  function syncSlider() {
+    const [Y, M, D] = ymd();
+    $('day').value = Math.round((Date.UTC(Y, M - 1, D) - Date.UTC(Y, 0, 1)) / dayMs) + 1;
+    $('daylabel').textContent = `${M}月${D}日`;
+  }
+  $('date').value = new Date().toLocaleDateString('sv-SE');
+  syncSlider();
+  setTol(0.2);
+  updateLegend();
+  $('date').addEventListener('change', () => { if (!$('date').value) return; syncSlider(); schedule(100); });
+  $('day').addEventListener('input', () => {
+    const [Y] = ymd();
+    $('date').value = new Date(Date.UTC(Y, 0, +$('day').value)).toISOString().slice(0, 10);
+    syncSlider(); schedule(250);
+  });
+  $('show').addEventListener('change', () => overlay && overlay.setOpacity(+$('show').checked * $('op').value / 100));
+  $('op').addEventListener('input', () => { $('opv').textContent = $('op').value; if (overlay && $('show').checked) overlay.setOpacity($('op').value / 100); });
+  document.querySelectorAll('.preset').forEach(b => b.addEventListener('click', () => { setTol(b.dataset.v); schedule(100); }));
+  $('tol').addEventListener('input', () => { setTol($('tol').value); schedule(300); });
+  $('dist').addEventListener('input', () => { $('distv').textContent = $('dist').value; schedule(300); });
+  $('mode').addEventListener('change', () => { updateLegend(); schedule(100); });
+  ['res', 'src', 'sea'].forEach(id => $(id).addEventListener('change', () => schedule(100)));
+  $('go').addEventListener('click', () => compute());
+  map.on('moveend', () => schedule(400));
+
+  map.on('click', e => {
+    const [Y, M, D] = ymd();
+    const s = sunsetFor(e.latlng.lat, e.latlng.lng, Y, M, D);
+    let html = '<div class="pop">';
+    if (grid) {
+      const p = map.project(e.latlng, grid.z);
+      const i = Math.floor((p.x - grid.nw.x) / grid.cell), j = Math.floor((p.y - grid.nw.y) / grid.cell);
+      if (i >= 0 && i < grid.W && j >= 0 && j < grid.H) {
+        const th = grid.theta[j * grid.W + i];
+        const mxp = p.x - grid.mx0, myp = p.y - grid.my0;
+        const h = grid.mosaic[(myp | 0) * grid.MW + (mxp | 0)];
+        if (Number.isNaN(th)) html += '<b>ここは海の上などなので、調べていません。</b><br>';
+        else {
+          html += th <= grid.tol
+            ? '<span class="ok">🟢 ここから夕日が見えます！</span><br>'
+            : '<span class="ng">🔴 夕日が山や丘にかくれてしまいます</span><br>';
+          html += `海面からの高さ：約${h.toFixed(0)}m<br>`;
+          html += th > 0.05
+            ? `太陽の方向の山を見上げる角度：${th.toFixed(1)}度<br>`
+            : '太陽の方向には、見上げるほどの山はありません<br>';
+        }
+      }
+    }
+    html += s ? `この場所の日の入り：<b>${fmtTime(s.time)}</b>（${dirName(s.az)}の空）` : 'この日は日の入りがありません';
+    const q = e.latlng.lat.toFixed(6) + ',' + e.latlng.lng.toFixed(6);
+    html += `<br><a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">📍 Googleマップでひらく</a>` +
+            `<br><a href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">🚗 ここまでの道順を見る</a></div>`;
+    L.popup().setLatLng(e.latlng).setContent(html).openOn(map);
+  });
+
+  compute();
+})();
+</script>
+</body>
+</html>
