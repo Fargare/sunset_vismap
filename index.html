@@ -117,8 +117,8 @@
       <option value="heat">かくれぐあいも色で見る（うすいグレー〜こいグレー）</option>
     </select>
 
-    <label for="tol">山の高さのゆるし具合：<span id="tolv">0.2</span>度</label>
-    <input type="range" id="tol" min="0" max="10" step="0.1" value="0.2">
+    <label for="tol">山の高さのゆるし具合：<span id="tolv">5.0</span>度</label>
+    <input type="range" id="tol" min="0" max="10" step="0.1" value="5">
     <div class="small">太陽の方向にある山を「見上げる角度」です。大きくするほど、山があっても「見える」とみなします。うでをのばして小指1本ぶんが約1度です。</div>
 
     <label for="dist">どこまで遠くの山を調べる？：<span id="distv">50</span> km</label>
@@ -441,7 +441,7 @@
   }
   $('date').value = new Date().toLocaleDateString('sv-SE');
   syncSlider();
-  setTol(0.2);
+  setTol(5);
   updateLegend();
   $('date').addEventListener('change', () => { if (!$('date').value) return; syncSlider(); schedule(100); });
   $('day').addEventListener('input', () => {
