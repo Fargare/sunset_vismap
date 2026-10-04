@@ -2,7 +2,7 @@
 
 日付をえらぶと、その日の**日の入り（または日の出）の方角**と、**太陽が水平線ぎりぎりまで見える場所**を地図の上に色（ゆうやけピンクなど。好きな色に変えられます）で表示するWebアプリです。山や丘にかくれる場所は色がつきません。
 
-▶ **アプリを開く**: `https://（ユーザー名）.github.io/（リポジトリ名）/`
+▶ **アプリを開く**: `https://fargare.github.io/sunset_vismap/`
 （公開したあと、上のURLを自分のものに書きかえてください）
 
 ## つかい方
@@ -30,7 +30,7 @@
 1. このリポジトリに `index.html` と `README.md` をアップロードする
 2. `Settings` → `Pages` → `Source` を `Deploy from a branch` にする
 3. `Branch` を `main` / `(root)` にして `Save`
-4. 1〜2分後、`https://（ユーザー名）.github.io/（リポジトリ名）/` で開けます
+4. 1〜2分後、`https://fargare.github.io/sunset_vismap/` で開けます
 
 ## つかっているデータ・ライブラリ
 
