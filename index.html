@@ -222,7 +222,7 @@
   const baseCarto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
     maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap contributors © CARTO'
   });
-  baseGsi.addTo(map);
+  baseOsm.addTo(map);
   L.control.layers({ '地理院地図': baseGsi, 'OpenStreetMap': baseOsm, 'CARTO': baseCarto }, null, { position: 'topleft' }).addTo(map);
   let baseErrs = 0;
   [baseGsi, baseOsm, baseCarto].forEach(l => l.on('tileerror', () => {
