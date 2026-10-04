@@ -42,6 +42,8 @@
   :root { --accent:#9d174d; }
   .pop .ok { color:var(--accent); font-weight:800; font-size:15px; }
   .pop .ng { color:#475569; font-weight:800; font-size:15px; }
+  button.loc { background:#0369a1; margin-top:10px; }
+  button.loc:hover { background:#075985; }
   .colors { display:flex; gap:10px; margin:6px 0 2px; }
   .cbtn { width:34px; height:34px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 1px #aaa; cursor:pointer; padding:0; }
   .cbtn.on { box-shadow:0 0 0 3px #222; }
@@ -64,6 +66,8 @@
       <li>地図の<b style="color:var(--accent)">色がついた場所</b>が夕日の見えるスポット。タップすると くわしく出ます</li>
     </ol>
   </div>
+
+  <button class="go loc" id="locate">📍 いまいる場所へ移動</button>
 
   <h3><span class="num">1</span>いつ見る？</h3>
   <input type="date" id="date">
@@ -447,6 +451,27 @@
     if (grid) paint();
   }));
   $('go').addEventListener('click', () => compute());
+
+  /* ---------- 現在地へ移動 ---------- */
+  let meMarker = null, meCircle = null;
+  $('locate').addEventListener('click', () => {
+    if (!navigator.geolocation) { setStatus('このブラウザでは現在地を使えません。'); return; }
+    setStatus('📍 現在地をさがしています…（許可を聞かれたら「許可」をえらんでください）');
+    map.locate({ setView: true, maxZoom: 12, enableHighAccuracy: true, timeout: 15000 });
+  });
+  map.on('locationfound', e => {
+    if (meMarker) map.removeLayer(meMarker);
+    if (meCircle) map.removeLayer(meCircle);
+    meCircle = L.circle(e.latlng, { radius: e.accuracy, color: '#0369a1', weight: 1, fillOpacity: 0.1, interactive: false }).addTo(map);
+    meMarker = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#0369a1', fillOpacity: 1, interactive: false }).addTo(map);
+    setStatus('📍 現在地に移動しました。夕日が見えるか調べています…');
+  });
+  map.on('locationerror', e => {
+    const msg = { 1: '位置情報が許可されていません。アドレスバーのマークから、このサイトの位置情報を「許可」にしてください。',
+                  2: '現在地を取得できませんでした。電波のよい場所で、もう一度ためしてください。',
+                  3: '現在地の取得に時間がかかりすぎました。もう一度ためしてください。' };
+    setStatus('📍 ' + (msg[e.code] || '現在地を取得できませんでした。'));
+  });
   map.on('moveend', () => schedule(400));
 
   map.on('click', e => {
