@@ -85,8 +85,8 @@
 
   <h3><span class="num">2</span>どんな<span class="sunw">夕日</span>が見たい？</h3>
   <div class="presets">
-    <button class="preset" data-v="0.2">🌅 水平線ぎりぎりまで見たい<small>太陽が地面や海にふれる瞬間まで、じゃまがない場所</small></button>
-    <button class="preset" data-v="5">🌇 赤い<span class="sunw">夕日</span>が見えればOK<small>太陽が赤くなるころまで見える場所（おすすめ）</small></button>
+    <button class="preset" data-v="0.2">🌅 水平線ぎりぎりまで見たい<small id="p1s">太陽が地面や海にふれる瞬間まで、じゃまがない場所</small></button>
+    <button class="preset" data-v="5">🌇 赤い<span class="sunw">夕日</span>が見えればOK<small id="p2s">太陽が赤くなるころまで見える場所（おすすめ）</small></button>
     <button class="preset" data-v="10">🏞 山が少しあってもOK<small>見える場所を広めに表示します</small></button>
   </div>
   <div class="small" id="tolhint" style="margin-top:6px"></div>
@@ -141,7 +141,7 @@
   </details>
 
   <div class="credit">
-    ・日の入り（日の出）の方角は、画面の真ん中の場所で計算しています。<br>
+    ・<span id="evnote">日の入り</span>の方角は、画面の真ん中の場所で計算しています。<br>
     ・地図：地理院地図 / OpenStreetMap contributors / CARTO、地形データ：国土地理院・AWS Terrain Tiles
   </div>
 </details>
@@ -311,7 +311,7 @@
     if (!sun) {
       if (overlay) { map.removeLayer(overlay); overlay = null; }
       grid = null;
-      $('info').textContent = 'この日この場所では、太陽がしずみません（または のぼりません）。';
+      $('info').textContent = `この日この場所では、${EV()}がありません（白夜・極夜など）。`;
       setStatus(''); return;
     }
     $('info').innerHTML = `この日の${EV()}：<b>${fmtTime(sun.time)}</b><br>` +
@@ -464,6 +464,9 @@
   }));
   function updateWords() {
     document.querySelectorAll('.sunw').forEach(e => { e.textContent = SUN(); });
+    $('evnote').textContent = EV();
+    $('p1s').textContent = isRise() ? '太陽が地面や海から顔を出す瞬間から、じゃまがない場所' : '太陽が地面や海にふれる瞬間まで、じゃまがない場所';
+    $('p2s').textContent = isRise() ? '太陽がまだ赤いころから見える場所（おすすめ）' : '太陽が赤くなるころまで見える場所（おすすめ）';
     setTol($('tol').value);
     updateLegend();
   }
@@ -487,7 +490,7 @@
     if (meCircle) map.removeLayer(meCircle);
     meCircle = L.circle(e.latlng, { radius: e.accuracy, color: '#0369a1', weight: 1, fillOpacity: 0.1, interactive: false }).addTo(map);
     meMarker = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#0369a1', fillOpacity: 1, interactive: false }).addTo(map);
-    setStatus('📍 現在地に移動しました。夕日が見えるか調べています…');
+    setStatus(`📍 現在地に移動しました。${SUN()}が見えるか調べています…`);
   });
   map.on('locationerror', e => {
     const msg = { 1: '位置情報が許可されていません。アドレスバーのマークから、このサイトの位置情報を「許可」にしてください。',
