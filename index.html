@@ -387,7 +387,7 @@
         if (skipSea && h0 <= 0) { theta[idx] = NaN; continue; }
         const eye = h0 + EYE_H;
         let maxS = -Infinity;
-        for (let t = 1; t <= tMax; t += Math.max(1, t * 0.02)) {
+        for (let t = 1; t <= tMax; t += 1) {
           const px = mxp + sx * t, py = my_ + sy * t;
           if (px < 0 || py < 0 || px >= MW || py >= MH) break;
           const d = t * mpp;
@@ -404,7 +404,7 @@
       }
     }
 
-    grid = { W, H, cell, z, nw, theta, tol, mode, mosaic, MW, mx0, my0 };
+    grid = { W, H, cell, z, nw, theta, tol, mode, mosaic, MW, mx0, my0, sx, sy, maxDistM };
     const { nVis, nValid } = paint();
     const pct = nValid ? Math.round(nVis / nValid * 100) : 0;
     setStatus(`✅ できました（${((performance.now() - t0) / 1000).toFixed(1)}秒）。画面の陸地のうち、${SUN()}が見える場所は約${pct}％です。`);
@@ -500,6 +500,24 @@
   });
   map.on('moveend', () => schedule(400));
 
+  // 1地点の視線を1ピクセルずつ詳しく調べ、いちばん太陽をかくす地形を返す
+  function rayDetail(g, mxp, myp, latR) {
+    const MH = g.mosaic.length / g.MW;
+    if (mxp < 0 || myp < 0 || mxp >= g.MW || myp >= MH) return null;
+    const mpp = 156543.03392 * Math.cos(latR) / Math.pow(2, g.z);
+    const h0 = g.mosaic[(myp | 0) * g.MW + (mxp | 0)];
+    const eye = h0 + EYE_H, K = (1 - REFRACT_K) / (2 * EARTH_R);
+    let best = -Infinity, bestD = 0, bestH = 0;
+    for (let t = 1; t * mpp <= g.maxDistM; t += 1) {
+      const px = mxp + g.sx * t, py = myp + g.sy * t;
+      if (px < 0 || py < 0 || px >= g.MW || py >= MH) break;
+      const d = t * mpp, hh = g.mosaic[(py | 0) * g.MW + (px | 0)];
+      const sl = (hh - eye - d * d * K) / d;
+      if (sl > best) { best = sl; bestD = d; bestH = hh; }
+    }
+    return { h0, deg: best === -Infinity ? -90 : Math.atan(best) / RAD, dist: bestD, h: bestH };
+  }
+
   map.on('click', e => {
     const [Y, M, D] = ymd();
     const s = sunsetFor(e.latlng.lat, e.latlng.lng, Y, M, D, isRise());
@@ -510,16 +528,17 @@
       if (i >= 0 && i < grid.W && j >= 0 && j < grid.H) {
         const th = grid.theta[j * grid.W + i];
         const mxp = p.x - grid.mx0, myp = p.y - grid.my0;
-        const h = grid.mosaic[(myp | 0) * grid.MW + (mxp | 0)];
-        if (Number.isNaN(th)) html += '<b>ここは海の上などなので、調べていません。</b><br>';
+        const d = rayDetail(grid, mxp, myp, e.latlng.lat * RAD);
+        if (Number.isNaN(th) || !d) html += '<b>ここは海の上などなので、調べていません。</b><br>';
         else {
-          html += th <= grid.tol
+          const ok = d.deg <= grid.tol;
+          html += ok
             ? `<span class="ok">${isRise() ? '🌄' : '🌇'} ここから${SUN()}が見えます！</span><br>`
             : `<span class="ng">⛰ ${SUN()}が山や丘にかくれてしまいます</span><br>`;
-          html += `海面からの高さ：約${h.toFixed(0)}m<br>`;
-          html += th > 0.05
-            ? `太陽の方向の山を見上げる角度：${th.toFixed(1)}度<br>`
-            : '太陽の方向には、見上げるほどの山はありません<br>';
+          html += `海面からの高さ：約${d.h0.toFixed(0)}m<br>`;
+          html += `いちばん太陽をかくす地形：約${(d.dist / 1000).toFixed(1)}km先、標高約${d.h.toFixed(0)}m<br>` +
+                  `（見上げる角度 ${d.deg.toFixed(2)}度${ok ? '＝ゆるし具合より低いので見える' : ''}）<br>`;
+          if ((th <= grid.tol) !== ok) html += '<span class="small">※地図の色とここだけ結果がちがいます（地図は計算を少し粗くしています）</span><br>';
         }
       }
     }
