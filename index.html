@@ -39,7 +39,7 @@
   .ov { image-rendering:auto; }
   .credit { font-size:11px; color:#777; margin-top:10px; }
   .pop { font-size:14px; line-height:1.6; }
-  .pop .ok { color:#15803d; font-weight:800; font-size:15px; }
+  .pop .ok { color:#c2410c; font-weight:800; font-size:15px; }
   .pop .ng { color:#b91c1c; font-weight:800; font-size:15px; }
   @media (max-width:600px) {
     #panel { top:auto; bottom:0; left:0; right:0; width:auto; max-height:52%; border-radius:14px 14px 0 0; }
@@ -57,7 +57,7 @@
     <ol>
       <li>見たい日をえらぶ</li>
       <li>どんな夕日が見たいかをえらぶ</li>
-      <li>地図の<b style="color:#15803d">緑の場所</b>が夕日の見えるスポット。タップすると くわしく出ます</li>
+      <li>地図の<b style="color:#ea580c">オレンジ色の場所</b>が夕日の見えるスポット。タップすると くわしく出ます</li>
     </ol>
   </div>
 
@@ -91,8 +91,8 @@
 
     <label for="mode">色の見かた</label>
     <select id="mode">
-      <option value="mask">見える場所だけ緑にする</option>
-      <option value="heat">かくれぐあいも色で見る（オレンジ〜赤）</option>
+      <option value="mask">見える場所だけオレンジにする</option>
+      <option value="heat">かくれぐあいも色で見る（うす青〜こい紺）</option>
     </select>
 
     <label for="tol">山の高さのゆるし具合：<span id="tolv">0.2</span>度</label>
@@ -249,7 +249,7 @@
     }
     $('info').innerHTML = `この日の日の入り：<b>${fmtTime(sun.time)}</b><br>` +
       `太陽がしずむ方角：<b>${dirName(sun.az)}</b>（北から時計回りに${sun.az.toFixed(0)}度）<br>` +
-      `<span class="small">地図のオレンジの点線の向きに太陽がしずみます</span>`;
+      `<span class="small">地図の紫の点線の向きに太陽がしずみます</span>`;
 
     const az = sun.az * RAD, sx = Math.sin(az), sy = -Math.cos(az);
     const maxDistM = +$('dist').value * 1000;
@@ -257,7 +257,7 @@
     const widthM = map.distance(b.getNorthWest(), b.getNorthEast());
     const len = widthM * 0.25;
     arrow = L.polyline([c, [c.lat + len * Math.cos(az) / 111320, c.lng + len * Math.sin(az) / (111320 * Math.cos(c.lat * RAD))]],
-      { color: '#f97316', weight: 3, dashArray: '6 6', interactive: false }).addTo(map);
+      { color: '#6d28d9', weight: 4, dashArray: '8 8', interactive: false }).addTo(map);
 
     let z = Math.max(6, Math.min(14, Math.round(map.getZoom()) + 1));
     let nw, se, tx0, tx1, ty0, ty1, maxPx;
@@ -340,14 +340,21 @@
     const cvs = document.createElement('canvas'); cvs.width = W; cvs.height = H;
     const ctx = cvs.getContext('2d'), img = ctx.createImageData(W, H), px = img.data;
     let nVis = 0, nValid = 0;
+    // 「見えない（山でかくれる）」セルか？ 海などの対象外(NaN)は含めない
+    const hidden = (i, j) => i >= 0 && i < W && j >= 0 && j < H && theta[j * W + i] > tol;
     for (let k = 0; k < theta.length; k++) {
       const th = theta[k], o = k * 4;
       if (Number.isNaN(th)) continue;
       nValid++;
-      if (th <= tol) { px[o] = 34; px[o + 1] = 197; px[o + 2] = 94; px[o + 3] = 210; nVis++; }
-      else if (mode === 'heat') {
-        const u = Math.min(1, (th - tol) / 5);
-        px[o] = 251 + (127 - 251) * u; px[o + 1] = 146 + (29 - 146) * u; px[o + 2] = 60 + (29 - 60) * u; px[o + 3] = 170;
+      if (th <= tol) {
+        const i = k % W, j = (k - i) / W;
+        const edge = hidden(i - 1, j) || hidden(i + 1, j) || hidden(i, j - 1) || hidden(i, j + 1);
+        if (edge) { px[o] = 190; px[o + 1] = 45; px[o + 2] = 0; px[o + 3] = 255; }      // ふちは濃い赤橙
+        else { px[o] = 255; px[o + 1] = 106; px[o + 2] = 0; px[o + 3] = 215; }          // 夕日のオレンジ
+        nVis++;
+      } else if (mode === 'heat') {
+        const u = Math.min(1, (th - tol) / 5);   // かくれ方：うす青 → こい紺
+        px[o] = 147 + (30 - 147) * u; px[o + 1] = 197 + (41 - 197) * u; px[o + 2] = 253 + (99 - 253) * u; px[o + 3] = 170;
       }
     }
     ctx.putImageData(img, 0, 0);
@@ -365,9 +372,9 @@
 
   /* ---------- UI ---------- */
   function tolHint(v) {
-    if (v <= 0.5) return '太陽が水平線にふれるまで、山や建物ではなく「地形」にじゃまされない場所だけを緑にします。';
-    if (v <= 6) return '太陽が低くなって赤くなるころまで見えれば、緑にします。夕焼けを楽しむならこのくらいがおすすめ。';
-    return '山が少し高くても、夕日が見えるとみなして、緑の場所を広めに出します。';
+    if (v <= 0.5) return '太陽が水平線にふれるまで、山や丘などの「地形」にじゃまされない場所だけをオレンジにします。';
+    if (v <= 6) return '太陽が低くなって赤くなるころまで見えれば、オレンジにします。夕焼けを楽しむならこのくらいがおすすめ。';
+    return '山が少し高くても、夕日が見えるとみなして、オレンジの場所を広めに出します。';
   }
   function setTol(v) {
     v = +v;
@@ -378,9 +385,9 @@
   }
   function updateLegend() {
     $('legend').innerHTML =
-      '<div><span class="sw" style="background:rgb(34,197,94)"></span>緑：ここから夕日が見える</div>' +
+      '<div><span class="sw" style="background:rgb(255,106,0);border:2px solid rgb(190,45,0);box-sizing:border-box"></span>オレンジ：ここから夕日が見える</div>' +
       '<div><span class="sw" style="background:#fff;border:1px solid #aaa"></span>色なし：山や丘にかくれて見えにくい</div>' +
-      ($('mode').value === 'heat' ? '<div><span class="sw" style="background:linear-gradient(90deg,#fb923c,#7f1d1d)"></span>オレンジ〜こい赤：かくれ方が大きい</div>' : '');
+      ($('mode').value === 'heat' ? '<div><span class="sw" style="background:linear-gradient(90deg,#93c5fd,#1e2963)"></span>うす青〜こい紺：かくれ方が大きい</div>' : '');
   }
   function syncSlider() {
     const [Y, M, D] = ymd();
@@ -421,7 +428,7 @@
         if (Number.isNaN(th)) html += '<b>ここは海の上などなので、調べていません。</b><br>';
         else {
           html += th <= grid.tol
-            ? '<span class="ok">🟢 ここから夕日が見えます！</span><br>'
+            ? '<span class="ok">🟠 ここから夕日が見えます！</span><br>'
             : '<span class="ng">🔴 夕日が山や丘にかくれてしまいます</span><br>';
           html += `海面からの高さ：約${h.toFixed(0)}m<br>`;
           html += th > 0.05
